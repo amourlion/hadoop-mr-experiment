@@ -1,0 +1,19 @@
+cat > .gitignore <<EOF
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# VSCode
+.vscode/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+EOF
