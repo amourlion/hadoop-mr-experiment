@@ -16,4 +16,8 @@ target/
 # OS files
 .DS_Store
 
+*.txt
+
+*.csv
+
 EOF

@@ -36,7 +36,7 @@ public class Main {
         Configuration conf = new Configuration();
 
         // ⭐ 实验 A：控制 Reduce 启动时机
-        conf.setFloat("mapreduce.job.reduce.slowstart.completedmaps", 0.1f);
+        conf.setFloat("mapreduce.job.reduce.slowstart.completedmaps", 0.3f);
 
         Job job = Job.getInstance(conf, "ReduceStartExperiment");
         job.setJarByClass(Main.class);
