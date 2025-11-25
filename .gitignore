@@ -20,4 +20,6 @@ target/
 
 *.csv
 
+*.tmp
+
 EOF

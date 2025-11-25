@@ -1,11 +1,23 @@
 #!/bin/bash
 
-# System Metrics Collection Script
-# Usage: ./collect_metrics.sh <output_file>
+# System Metrics Collection Script for Multi-Node Hadoop Cluster
+# Usage: ./collect_metrics.sh <node_name> [interval]
 # This script runs in background and collects system metrics every second
 
-OUTPUT_FILE=${1:-"system_metrics.tmp"}
+NODE_NAME=${1}
 INTERVAL=${2:-1}  # Collection interval in seconds
+
+# Validate node name parameter
+if [ -z "$NODE_NAME" ]; then
+    echo "Error: Node name is required as the first parameter"
+    echo "Usage: $0 <node_name> [interval_seconds]"
+    echo "Example: $0 master 1"
+    echo "         $0 worker01 2"
+    exit 1
+fi
+
+# Generate output filename based on node name
+OUTPUT_FILE="${NODE_NAME}.csv"
 
 # Function to get CPU usage percentage
 get_cpu_usage() {
@@ -74,8 +86,8 @@ get_java_metrics() {
     fi
 }
 
-# Initialize output file with header
-echo "timestamp,cpu_percent,memory_used_mb,memory_total_mb,memory_percent,load_avg,disk_reads,disk_writes,network_rx_mb,network_tx_mb,java_cpu_percent,java_memory_percent,java_processes" > "$OUTPUT_FILE"
+# Initialize output file with header (added node_name column for multi-node analysis)
+echo "node_name,timestamp,cpu_percent,memory_used_mb,memory_total_mb,memory_percent,load_avg,disk_reads,disk_writes,network_rx_mb,network_tx_mb,java_cpu_percent,java_memory_percent,java_processes" > "$OUTPUT_FILE"
 
 echo "System metrics collection started. Output: $OUTPUT_FILE"
 echo "Collection interval: ${INTERVAL} second(s)"
@@ -111,8 +123,8 @@ while true; do
     java_mem=$(echo $java_metrics | awk '{print $2}')
     java_procs=$(echo $java_metrics | awk '{print $3}')
     
-    # Write metrics to file
-    echo "${timestamp},${cpu_usage},${memory_used},${memory_total},${memory_percent},${load_avg},${disk_reads},${disk_writes},${network_rx},${network_tx},${java_cpu},${java_mem},${java_procs}" >> "$OUTPUT_FILE"
+    # Write metrics to file (include node_name as first column)
+    echo "${NODE_NAME},${timestamp},${cpu_usage},${memory_used},${memory_total},${memory_percent},${load_avg},${disk_reads},${disk_writes},${network_rx},${network_tx},${java_cpu},${java_mem},${java_procs}" >> "$OUTPUT_FILE"
     
     sleep $INTERVAL
 done

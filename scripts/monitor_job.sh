@@ -21,7 +21,7 @@ EXPERIMENT_ID=${4:-$(date +%Y%m%d_%H%M%S)}
 # Output files
 METRICS_DIR="metrics"
 CSV_FILE="${METRICS_DIR}/experiment_${EXPERIMENT_ID}_slowstart_${SLOWSTART_VALUE}.csv"
-SYSTEM_METRICS_FILE="${METRICS_DIR}/system_${EXPERIMENT_ID}.tmp"
+SYSTEM_METRICS_FILE="${METRICS_DIR}/system_metrics_${EXPERIMENT_ID}_slowstart_${SLOWSTART_VALUE}.csv"
 JOB_LOG_FILE="${METRICS_DIR}/job_${EXPERIMENT_ID}.log"
 
 echo -e "${BLUE}=== Hadoop MapReduce Performance Monitor ===${NC}"
@@ -56,8 +56,13 @@ get_hadoop_pid() {
 
 # Start system monitoring in background
 echo -e "${BLUE}Starting system resource monitoring...${NC}"
-./collect_metrics.sh "${SYSTEM_METRICS_FILE}" &
+# Extract node name from hostname or use default
+NODE_NAME=${NODE_NAME:-$(hostname -s)}
+"$(dirname "$0")/collect_metrics.sh" "${NODE_NAME}" &
 MONITOR_PID=$!
+
+# Update system metrics file path to match the new naming convention
+SYSTEM_METRICS_FILE="${NODE_NAME}.csv"
 
 # Update slowstart value in Main.java
 echo -e "${BLUE}Updating slowstart value to ${SLOWSTART_VALUE}...${NC}"
@@ -97,7 +102,7 @@ fi
 
 # Process collected metrics
 echo -e "${BLUE}Processing collected metrics...${NC}"
-./process_metrics.sh "${SYSTEM_METRICS_FILE}" "${JOB_LOG_FILE}" "${CSV_FILE}" "${EXPERIMENT_ID}" "${SLOWSTART_VALUE}" "${START_TIME}" "${END_TIME}" "${TOTAL_TIME}" "${JOB_EXIT_CODE}"
+"$(dirname "$0")/process_metrics.sh" "${SYSTEM_METRICS_FILE}" "${JOB_LOG_FILE}" "${CSV_FILE}" "${EXPERIMENT_ID}" "${SLOWSTART_VALUE}" "${START_TIME}" "${END_TIME}" "${TOTAL_TIME}" "${JOB_EXIT_CODE}"
 
 # Display summary
 echo -e "\n${GREEN}=== Experiment Summary ===${NC}"
@@ -105,8 +110,8 @@ echo -e "Experiment ID: ${EXPERIMENT_ID}"
 echo -e "Slowstart Value: ${SLOWSTART_VALUE}"
 echo -e "Total Time: ${TOTAL_TIME} seconds"
 echo -e "Job Status: $([ ${JOB_EXIT_CODE} -eq 0 ] && echo 'SUCCESS' || echo 'FAILED')"
-echo -e "Metrics saved to: ${CSV_FILE}"
+echo -e "Experiment results saved to: ${CSV_FILE}"
+echo -e "System metrics saved to: ${SYSTEM_METRICS_FILE}"
 
-# Clean up temporary files
-rm -f "${SYSTEM_METRICS_FILE}" "${JOB_LOG_FILE}" 2>/dev/null || true
-
+# Clean up temporary files (keep system metrics CSV)
+rm -f "${JOB_LOG_FILE}" 2>/dev/null || true

@@ -53,7 +53,7 @@ for i in "${!SLOWSTART_VALUES[@]}"; do
     
     # Run single experiment
     start_exp_time=$(date +%s)
-    if ./monitor_job.sh "${slowstart_value}" "${INPUT_PATH}" "${output_path}" "${experiment_id}"; then
+    if "$(dirname "$0")/monitor_job.sh" "${slowstart_value}" "${INPUT_PATH}" "${output_path}" "${experiment_id}"; then
         end_exp_time=$(date +%s)
         exp_duration=$((end_exp_time - start_exp_time))
         successful_experiments=$((successful_experiments + 1))
@@ -90,7 +90,7 @@ echo -e "Summary CSV: ${SUMMARY_CSV}"
 
 # Generate analysis report
 echo -e "\n${BLUE}Generating analysis report...${NC}"
-./generate_report.sh "${SUMMARY_CSV}" "metrics/analysis_report_${EXPERIMENT_BASE_ID}.txt"
+"$(dirname "$0")/generate_report.sh" "${SUMMARY_CSV}" "metrics/analysis_report_${EXPERIMENT_BASE_ID}.txt"
 
 echo -e "\n${GREEN}Batch experiments completed!${NC}"
 

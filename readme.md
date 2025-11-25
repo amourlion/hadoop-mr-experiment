@@ -1,30 +1,145 @@
 # Hadoop MapReduce 实验：Reduce 启动时机（Slowstart）调优
 
-本项目用于“大规模数据处理系统”课程实验：通过调节参数 `mapreduce.job.reduce.slowstart.completedmaps` 观察 Reduce 任务启动时机对作业并行度、Shuffle 重叠度、资源利用与总耗时的影响。  
+本项目用于"大规模数据处理系统"课程实验：通过调节参数 `mapreduce.job.reduce.slowstart.completedmaps` 观察 Reduce 任务启动时机对作业并行度、Shuffle 重叠度、资源利用与总耗时的影响。  
 运行环境基于 Hadoop 3.2.4，示例程序为简单词频统计，可稳定复现实验现象。
+
+---
+
+## 🗂️ 项目脚本概览
+
+### 核心脚本文件结构
+```
+/home/ecs-user/MRApplication/reduce-startup/
+├── scripts/                           # 所有脚本统一存放目录
+│   ├── generate_data.py              # 🆕 统一数据生成器（支持任意大小）
+│   ├── collect_metrics.sh            # 🆕 多节点系统指标收集（支持节点名参数）
+│   ├── merge_node_metrics.sh         # 🆕 多节点数据合并工具
+│   ├── monitor_job.sh                # ✅ 单次实验监测（已优化CSV输出）
+│   ├── batch_experiment.sh           # ✅ 批量实验脚本
+│   ├── process_metrics.sh            # 数据处理脚本
+│   ├── generate_report.sh            # 分析报告生成脚本
+│   └── test_metrics_csv.sh           # CSV格式测试脚本
+├── run_scripts.sh                     # 🆕 便捷脚本执行器
+├── docs/                             
+│   └── MULTI_NODE_USAGE.md           # 🆕 多节点使用指南
+└── metrics/                          # CSV数据输出目录
+    ├── experiment_*.csv              # 单次实验结果
+    ├── batch_summary_*.csv           # 批量实验汇总
+    └── *.csv                        # 各节点系统指标文件
+```
+
+### 🚀 快速开始
+```bash
+# 查看所有可用脚本
+./run_scripts.sh
+
+# 生成测试数据
+./run_scripts.sh generate_data.py 100  # 生成100MB数据
+
+# 运行单次实验
+./run_scripts.sh monitor_job.sh 0.3
+
+# 运行批量实验
+./run_scripts.sh batch_experiment.sh
+
+# 多节点数据收集（详见docs/MULTI_NODE_USAGE.md）
+./run_scripts.sh collect_metrics.sh master 1
+./run_scripts.sh merge_node_metrics.sh cluster_metrics.csv master.csv worker*.csv
+```
 
 ---
 
 ## ✅ 性能监测系统
 
-本项目已集成完整的性能监测系统，可自动监测CPU利用率、内存使用量、作业执行时间等关键指标，并将结果保存为CSV格式。
+本项目已集成完整的性能监测系统，支持单节点和多节点Hadoop集群的性能数据收集，并将结果保存为标准化CSV格式。
 
-### 📊 监测指标
-- **系统资源**: CPU利用率、内存使用量、系统负载、磁盘I/O、网络I/O
-- **作业执行**: 总执行时间、Map/Reduce任务数、数据读写量
-- **Java进程**: Hadoop进程专用CPU和内存占用
+### 📊 数据表格规范
 
-### 🛠 监测脚本说明
+#### 🕐 性能监测表（时序数据）- System Metrics CSV
+用于记录系统资源的时序变化，文件命名：`{节点名}.csv`
 
-| 脚本名称 | 功能描述 |
-|----------|----------|
-| `monitor_job.sh` | 主监测脚本，执行单次实验并收集所有指标 |
-| `collect_metrics.sh` | 后台系统资源监测脚本 |
-| `process_metrics.sh` | 数据处理脚本，生成最终CSV文件 |
-| `batch_experiment.sh` | 批量实验脚本，自动测试多个slowstart值 |
-| `generate_report.sh` | 分析报告生成脚本 |
+| 列名 | 数据类型 | 单位 | 含义说明 |
+|------|----------|------|----------|
+| `node_name` | string | - | 节点名称标识（如master、worker01等） |
+| `timestamp` | integer | seconds | Unix时间戳，数据采集时刻 |
+| `cpu_percent` | float | % | CPU整体使用率（0-100） |
+| `memory_used_mb` | integer | MB | 已使用内存大小 |
+| `memory_total_mb` | integer | MB | 系统总内存大小 |
+| `memory_percent` | float | % | 内存使用率（0-100） |
+| `load_avg` | float | - | 系统1分钟平均负载 |
+| `disk_reads` | integer | ops | 累计磁盘读操作次数 |
+| `disk_writes` | integer | ops | 累计磁盘写操作次数 |
+| `network_rx_mb` | float | MB | 累计网络接收流量 |
+| `network_tx_mb` | float | MB | 累计网络发送流量 |
+| `java_cpu_percent` | float | % | Hadoop Java进程CPU使用率 |
+| `java_memory_percent` | float | % | Hadoop Java进程内存使用率 |
+| `java_processes` | integer | count | 活跃的Hadoop进程数量 |
 
-### 📋 使用方法
+**示例数据：**
+```csv
+node_name,timestamp,cpu_percent,memory_used_mb,memory_total_mb,memory_percent,load_avg,disk_reads,disk_writes,network_rx_mb,network_tx_mb,java_cpu_percent,java_memory_percent,java_processes
+master,1764038886,3.2,1414,7658,18.5,0.06,0,0,0,0,0,0,0
+worker01,1764038887,25.4,2048,4096,50.0,1.25,145,67,12.5,8.3,18.7,15.2,3
+```
+
+#### 📈 实验结果表（对比数据）- Experiment Results CSV
+用于记录不同实验配置的结果对比，文件命名：`experiment_{实验ID}_slowstart_{值}.csv`
+
+| 列名 | 数据类型 | 单位 | 含义说明 |
+|------|----------|------|----------|
+| `experiment_id` | string | - | 实验唯一标识符（通常为时间戳） |
+| `slowstart_value` | float | - | MapReduce慢启动参数值（0.0-1.0） |
+| `start_time` | integer | seconds | 实验开始时间戳 |
+| `end_time` | integer | seconds | 实验结束时间戳 |
+| `total_time_sec` | integer | seconds | 作业总执行时间 |
+| `avg_cpu_percent` | float | % | 实验期间平均CPU使用率 |
+| `max_cpu_percent` | float | % | 实验期间最大CPU使用率 |
+| `avg_memory_mb` | float | MB | 实验期间平均内存使用量 |
+| `max_memory_mb` | float | MB | 实验期间最大内存使用量 |
+| `avg_load` | float | - | 实验期间平均系统负载 |
+| `max_load` | float | - | 实验期间最大系统负载 |
+| `bytes_read` | long | bytes | 作业读取的总数据量 |
+| `bytes_written` | long | bytes | 作业写入的总数据量 |
+| `map_tasks` | integer | count | Map任务总数 |
+| `reduce_tasks` | integer | count | Reduce任务总数 |
+| `job_status` | string | - | 作业执行状态（SUCCESS/FAILED） |
+
+**示例数据：**
+```csv
+experiment_id,slowstart_value,start_time,end_time,total_time_sec,avg_cpu_percent,max_cpu_percent,avg_memory_mb,max_memory_mb,avg_load,max_load,bytes_read,bytes_written,map_tasks,reduce_tasks,job_status
+20231124_143000,0.3,1700812200,1700812220,20,45.2,78.5,1024,1456,0.85,2.14,1073741824,52428800,8,2,SUCCESS
+20231124_143500,0.7,1700812500,1700812528,28,42.1,68.3,998,1289,0.72,1.89,1073741824,52428800,8,2,SUCCESS
+```
+
+### 📋 标准规范（供其他子项目参考）
+
+#### 1. 文件命名规范
+- **系统指标**: `{节点名}.csv` （如：master.csv, worker01.csv）
+- **实验结果**: `experiment_{实验ID}_slowstart_{值}.csv`
+- **批量汇总**: `batch_summary_{时间戳}.csv`
+- **集群合并**: `cluster_{实验ID}.csv`
+
+#### 2. 数据格式要求
+- **时间戳**: 使用Unix时间戳（秒级精度）
+- **百分比**: 使用0-100范围的浮点数
+- **内存/存储**: 统一使用MB或bytes单位
+- **字符串**: 使用英文，避免特殊字符
+- **布尔值**: 使用SUCCESS/FAILED等明确字符串
+
+#### 3. CSV文件要求
+- **编码**: UTF-8
+- **分隔符**: 英文逗号（,）
+- **表头**: 第一行必须为列名
+- **无空行**: 数据行之间不允许空行
+- **数值精度**: 浮点数保留1-2位小数
+
+#### 4. 多节点数据合并
+- 所有节点的CSV文件必须具有相同的列结构
+- 第一列必须为`node_name`以便区分数据来源
+- 合并后按`timestamp`排序便于时序分析
+- 使用`scripts/merge_node_metrics.sh`进行标准化合并
+
+### � 使用方法
 
 #### 1. 单次实验监测
 ```bash
@@ -155,7 +270,7 @@ Slowstart | Total Time | Avg CPU | Max Memory | Status
 # 切换到数据集目录
 cd input-large
 
-# 使用自动生成的上传脚本
+# 使用自动生成的上传脚本cd
 ./upload_to_hdfs.sh
 
 # 或指定HDFS路径
@@ -174,6 +289,7 @@ cd input-large && ./upload_to_hdfs.sh /mr_input_large
 ```bash
 # 单次实验
 ./monitor_job.sh 0.3 /mr_input_large /mr_output_large_03
+./monitor_job.sh 0.3 /mr_input_zg /mr_output_zg
 
 # 批量实验
 ./batch_experiment.sh /mr_input_large /mr_output_large
@@ -203,7 +319,7 @@ cd input-large && ./upload_to_hdfs.sh /mr_input_large
 
 ---
 
-## 🏗 项目结构
+## 🏗 Hadoop工程项目结构
 ```
 reduce-startup/
 ├── src/
@@ -358,7 +474,7 @@ conf.setFloat("mapreduce.job.reduce.slowstart.completedmaps", 0.3f);
 
 ---
 
-## 🧩 Git 使用速览
+### 🧩 Git 使用速览
 ```bash
 git init
 git add .
@@ -368,13 +484,89 @@ git push -u origin master
 ```
 
 ---
-## 重启后hadoop启动
+### 重启后hadoop启动
 
 在hadoop001:
 
 start-dfs.sh
 
-在hadoop001：
 ssh hadoop002
 
-yarn --daemon start resourcemanager
+start-yarn.sh
+
+exit
+
+## hadoop面板查看
+
+hadoop001:9870 是文件管理系统的面板
+
+hadoop002:8088 是分布式任务面板
+
+## 🛠 常见问题
+### 大数据崩溃问题
+cd /opt/hadoop/etc/hadoop  进入配置文件目录下
+
+在 mapred-site.xml 加入
+'''
+<!-- Map 任务内存（根据最弱节点 4G 规划）-->
+    <property>
+        <name>mapreduce.map.memory.mb</name>
+        <value>1024</value>
+    </property>
+    <property>
+        <name>mapreduce.map.java.opts</name>
+        <value>-Xmx820m</value>
+    </property>
+
+    <!-- Reduce 任务内存（约 2G） -->
+    <property>
+        <name>mapreduce.reduce.memory.mb</name>
+        <value>2048</value>
+    </property>
+    <property>
+        <name>mapreduce.reduce.java.opts</name>
+        <value>-Xmx1640m</value>
+    </property>
+
+    <!-- Shuffle IO -->
+    <property>
+        <name>mapreduce.task.io.sort.mb</name>
+        <value>256</value>
+    </property>
+
+    <!-- 每个节点并行任务数量（由 CPU 决定） -->
+    <property>
+        <name>mapreduce.tasktracker.map.tasks.maximum</name>
+        <value>3</value>
+    </property>
+    <property>
+        <name>mapreduce.tasktracker.reduce.tasks.maximum</name>
+        <value>2</value>
+    </property>
+'''
+
+在 yarn-site.xml 加入
+'''
+<!-- 以下新增 -->
+    <property>
+        <name>yarn.nodemanager.resource.memory-mb</name>
+        <value>6144</value> <!-- 给 4C8G 节点 -->
+    </property>
+
+    <!-- CPU Core 数 -->
+    <property>
+        <name>yarn.nodemanager.resource.cpu-vcores</name>
+        <value>4</value>
+    </property>
+
+    <!-- Container 最小和最大内存 -->
+    <property>
+        <name>yarn.scheduler.minimum-allocation-mb</name>
+        <value>512</value>
+    </property>
+
+    <property>
+        <name>yarn.scheduler.maximum-allocation-mb</name>
+        <value>4096</value>
+    </property>
+'''

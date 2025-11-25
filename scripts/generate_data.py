@@ -2,14 +2,16 @@
 # -*- coding: utf-8 -*-
 
 """
-Large Dataset Generator for Hadoop MapReduce Experiments
-Generates a 1GB text dataset for word count analysis with realistic text patterns.
+Universal Dataset Generator for Hadoop MapReduce Experiments
+Generates text datasets of any size for word count analysis with realistic text patterns.
+Usage: python3 generate_data.py <size_in_mb> [options]
 """
 
 import os
 import random
 import string
 import argparse
+import sys
 from datetime import datetime
 
 class DatasetGenerator:
@@ -120,20 +122,42 @@ class DatasetGenerator:
                         break
                 
                 # Progress reporting
-                if progress_callback and lines_written % 10000 == 0:
+                if progress_callback and lines_written % 5000 == 0:
                     progress_pct = min(100, (current_size / target_size_bytes) * 100)
                     progress_callback(filepath, progress_pct, current_size, lines_written)
         
         return current_size, lines_written
     
-    def generate_dataset(self, output_dir, total_size_gb=1, num_files=4, prefix='data'):
+    def calculate_optimal_files(self, total_size_mb):
+        """Calculate optimal number of files based on dataset size"""
+        if total_size_mb <= 5:
+            return 2  # Small datasets: 2 files
+        elif total_size_mb <= 50:
+            return 4  # Medium datasets: 4 files
+        elif total_size_mb <= 500:
+            return 8  # Large datasets: 8 files
+        else:
+            return max(16, min(32, total_size_mb // 100))  # Very large: 16-32 files
+    
+    def generate_dataset(self, total_size_mb, output_dir=None, num_files=None, prefix='data'):
         """Generate complete dataset with multiple files"""
-        total_size_mb = total_size_gb * 1024
-        size_per_file_mb = total_size_mb // num_files
+        if output_dir is None:
+            if total_size_mb <= 5:
+                output_dir = 'input-local'
+            elif total_size_mb <= 100:
+                output_dir = 'input-small'
+            else:
+                output_dir = 'input-large'
         
-        print(f"Generating {total_size_gb}GB dataset in {num_files} files...")
-        print(f"Target size per file: {size_per_file_mb}MB")
+        if num_files is None:
+            num_files = self.calculate_optimal_files(total_size_mb)
+        
+        size_per_file_mb = total_size_mb / num_files
+        
+        print(f"=== Generating {total_size_mb}MB dataset ===")
         print(f"Output directory: {output_dir}")
+        print(f"Number of files: {num_files}")
+        print(f"Target size per file: {size_per_file_mb:.2f}MB")
         
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
@@ -162,44 +186,38 @@ class DatasetGenerator:
         duration = (end_time - start_time).total_seconds()
         
         print(f"\n🎉 Dataset generation completed!")
-        print(f"Total size: {total_bytes/1024/1024/1024:.3f}GB ({total_bytes:,} bytes)")
+        print(f"Total size: {total_bytes/1024/1024:.3f}MB ({total_bytes:,} bytes)")
         print(f"Total lines: {total_lines:,}")
         print(f"Generation time: {duration:.2f} seconds")
         print(f"Average speed: {(total_bytes/1024/1024)/duration:.2f} MB/s")
         
-        return output_dir, total_bytes, total_lines
-
-def main():
-    parser = argparse.ArgumentParser(description='Generate large dataset for Hadoop MapReduce experiments')
-    parser.add_argument('--size', type=float, default=1.0, help='Dataset size in GB (default: 1.0)')
-    parser.add_argument('--files', type=int, default=4, help='Number of files to generate (default: 4)')
-    parser.add_argument('--output', type=str, default='input-large', help='Output directory (default: input-large)')
-    parser.add_argument('--prefix', type=str, default='data', help='File prefix (default: data)')
-    
-    args = parser.parse_args()
-    
-    generator = DatasetGenerator()
-    
-    try:
-        output_dir, total_bytes, total_lines = generator.generate_dataset(
-            output_dir=args.output,
-            total_size_gb=args.size,
-            num_files=args.files,
-            prefix=args.prefix
-        )
-        
         # Generate upload script for HDFS
+        self.create_hdfs_upload_script(output_dir, num_files, prefix)
+        
+        return output_dir, total_bytes, total_lines
+    
+    def create_hdfs_upload_script(self, output_dir, num_files, prefix):
+        """Create HDFS upload script"""
         upload_script_path = os.path.join(output_dir, 'upload_to_hdfs.sh')
+        
+        # Determine default HDFS path based on output directory
+        if 'local' in output_dir:
+            default_hdfs_path = '/mr_input_local'
+        elif 'small' in output_dir:
+            default_hdfs_path = '/mr_input_small'
+        else:
+            default_hdfs_path = '/mr_input'
+        
         with open(upload_script_path, 'w') as f:
             f.write('#!/bin/bash\n\n')
             f.write('# Upload generated dataset to HDFS\n')
             f.write('# Usage: ./upload_to_hdfs.sh [hdfs_path]\n\n')
-            f.write('HDFS_PATH=${1:-"/mr_input_large"}\n\n')
+            f.write(f'HDFS_PATH=${{1:-"{default_hdfs_path}"}}\n\n')
             f.write('echo "Creating HDFS directory: $HDFS_PATH"\n')
             f.write('hdfs dfs -mkdir -p "$HDFS_PATH"\n\n')
             f.write('echo "Uploading dataset files..."\n')
-            for i in range(args.files):
-                filename = f"{args.prefix}{i+1:02d}.txt"
+            for i in range(num_files):
+                filename = f"{prefix}{i+1:02d}.txt"
                 f.write(f'hdfs dfs -put -f "{filename}" "$HDFS_PATH/"\n')
             f.write('\necho "Upload completed. Verifying..."\n')
             f.write('hdfs dfs -ls "$HDFS_PATH"\n')
@@ -211,13 +229,55 @@ def main():
         print(f"  - HDFS upload script: {upload_script_path}")
         print(f"\n🚀 Next steps:")
         print(f"  1. Upload to HDFS: cd {output_dir} && ./upload_to_hdfs.sh")
-        print(f"  2. Run experiments: ./monitor_job.sh 0.3 /mr_input_large /mr_output_large")
+        print(f"  2. Run experiments: ./monitor_job.sh 0.3 {default_hdfs_path} /mr_output")
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Generate datasets of any size for Hadoop MapReduce experiments',
+        epilog="""
+Examples:
+  python3 generate_data.py 1           # Generate 1MB dataset
+  python3 generate_data.py 100         # Generate 100MB dataset  
+  python3 generate_data.py 1000        # Generate 1GB dataset
+  python3 generate_data.py 50 --files 8 --output my-data --prefix test
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    
+    parser.add_argument('size', type=int, help='Dataset size in MB')
+    parser.add_argument('--files', type=int, help='Number of files to generate (auto-calculated if not specified)')
+    parser.add_argument('--output', type=str, help='Output directory (auto-determined if not specified)')
+    parser.add_argument('--prefix', type=str, default='data', help='File prefix (default: data)')
+    
+    args = parser.parse_args()
+    
+    # Validate input
+    if args.size <= 0:
+        print("❌ Error: Size must be a positive integer")
+        return 1
+    
+    if args.files is not None and args.files <= 0:
+        print("❌ Error: Number of files must be a positive integer")
+        return 1
+    
+    generator = DatasetGenerator()
+    
+    try:
+        output_dir, total_bytes, total_lines = generator.generate_dataset(
+            total_size_mb=args.size,
+            output_dir=args.output,
+            num_files=args.files,
+            prefix=args.prefix
+        )
         
+        return 0
+        
+    except KeyboardInterrupt:
+        print("\n❌ Generation interrupted by user")
+        return 1
     except Exception as e:
         print(f"❌ Error generating dataset: {e}")
         return 1
-    
-    return 0
 
 if __name__ == '__main__':
-    exit(main())
+    main()
