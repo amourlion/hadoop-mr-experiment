@@ -36,7 +36,7 @@ public class Main {
         Configuration conf = new Configuration();
 
         // ⭐ 实验 A：控制 Reduce 启动时机
-        conf.setFloat("mapreduce.job.reduce.slowstart.completedmaps", 1.0f);
+        conf.setFloat("mapreduce.job.reduce.slowstart.completedmaps", 0.3f);
         
         // 设置内存配置，确保不超过集群限制（最大4096MB）
         conf.set("mapreduce.map.memory.mb", "2048");

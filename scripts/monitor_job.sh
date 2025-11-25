@@ -105,6 +105,23 @@ fi
 echo -e "${BLUE}Processing collected metrics...${NC}"
 "$(dirname "$0")/process_metrics.sh" "${SYSTEM_METRICS_FILE}" "${JOB_LOG_FILE}" "${CSV_FILE}" "${EXPERIMENT_ID}" "${SLOWSTART_VALUE}" "${START_TIME}" "${END_TIME}" "${TOTAL_TIME}" "${JOB_EXIT_CODE}"
 
+# Extract Map/Reduce timeline data if job succeeded
+if [ ${JOB_EXIT_CODE} -eq 0 ]; then
+    echo -e "${BLUE}Extracting Map/Reduce timeline...${NC}"
+    
+    # Extract application ID from job log
+    APPLICATION_ID=$(grep -oP "Submitted application application_\K\d+_\d+" "${JOB_LOG_FILE}" | head -1)
+    if [ ! -z "${APPLICATION_ID}" ]; then
+        APPLICATION_ID="application_${APPLICATION_ID}"
+        "$(dirname "$0")/extract_timeline.sh" "${APPLICATION_ID}" "${SLOWSTART_VALUE}" "${EXPERIMENT_ID}" 2>/dev/null || {
+            echo -e "${YELLOW}Warning: Timeline extraction failed. Make sure JobHistory Server is running.${NC}"
+            echo -e "${YELLOW}To start: mapred --daemon start historyserver${NC}"
+        }
+    else
+        echo -e "${YELLOW}Warning: Could not extract application ID from job log${NC}"
+    fi
+fi
+
 # Display summary
 echo -e "\n${GREEN}=== Experiment Summary ===${NC}"
 echo -e "Experiment ID: ${EXPERIMENT_ID}"

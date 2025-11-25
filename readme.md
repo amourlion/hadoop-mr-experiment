@@ -183,21 +183,39 @@ kill %1  # 或使用具体的PID
 ### 📁 输出文件说明
 
 #### CSV文件格式
-监测脚本生成的CSV文件包含以下列：
 
+**1. 实验结果CSV** (`experiment_*.csv`)
 ```csv
 experiment_id,slowstart_value,start_time,end_time,total_time_sec,
 avg_cpu_percent,max_cpu_percent,avg_memory_mb,max_memory_mb,
 avg_load,max_load,bytes_read,bytes_written,map_tasks,reduce_tasks,job_status
 ```
 
+**2. 任务时间线CSV** (`*_timeline.csv`) 🆕
+记录每个Map/Reduce任务的启动和完成时间（原始数据）
+```csv
+experiment_id,slowstart_value,task_id,task_type,start_time,finish_time,elapsed_sec,
+shuffle_finish_time,merge_finish_time,reduce_finish_time
+```
+
+**3. 时间线汇总CSV** (`*_timeline_summary.csv`) 🆕
+统计Map/Reduce的并行执行情况
+```csv
+experiment_id,slowstart_value,num_map_tasks,num_reduce_tasks,
+map_start_time,map_end_time,map_duration_sec,
+reduce_start_time,reduce_end_time,reduce_duration_sec,
+overlap_duration_sec,reduce_start_at_map_pct,
+total_time_sec,time_saved_sec,parallel_efficiency_pct
+```
+
 #### 文件结构
 ```
 metrics/
-├── experiment_<id>_slowstart_<value>.csv    # 单次实验结果
-├── batch_summary_<timestamp>.csv            # 批量实验汇总
-├── analysis_report_<timestamp>.txt          # 分析报告
-└── system_<id>.tmp                         # 临时系统指标文件
+├── experiment_<id>_slowstart_<value>.csv           # 单次实验结果
+├── <id>_slowstart_<value>_timeline.csv             # 🆕 任务时间线（原始数据）
+├── <id>_slowstart_<value>_timeline_summary.csv     # 🆕 时间线统计汇总
+├── batch_summary_<timestamp>.csv                   # 批量实验汇总
+└── analysis_report_<timestamp>.txt                 # 分析报告
 ```
 
 ### 🔍 输出示例
@@ -810,3 +828,167 @@ find system_metrics/ -name "*.csv" -mtime +30 -delete
 # 只保留最近10次实验
 ls -t system_metrics/*.csv | tail -n +11 | xargs rm -f
 ```
+
+---
+
+## 🕐 Map/Reduce时间线提取工具 (2025-11-25)
+
+### 功能说明
+
+为了深入分析Map和Reduce任务的并行执行情况，项目提供了时间线提取工具`extract_timeline.sh`。该工具通过Hadoop JobHistory Server的REST API，自动提取每个任务的启动和完成时间，生成独立的timeline CSV文件。
+
+### 📊 生成的文件
+
+#### 1. 任务时间线详细数据
+**文件名**: `metrics/{实验ID}_slowstart_{值}_timeline.csv`
+
+记录每个Map/Reduce任务的原始时间数据：
+
+| 列名 | 说明 |
+|------|------|
+| `experiment_id` | 实验标识符 |
+| `slowstart_value` | 慢启动参数值 |
+| `task_id` | 任务ID（如task_xxx_m_000001） |
+| `task_type` | 任务类型（MAP/REDUCE） |
+| `start_time` | 任务启动时间（Unix时间戳） |
+| `finish_time` | 任务完成时间（Unix时间戳） |
+| `elapsed_sec` | 任务执行时长（秒） |
+| `shuffle_finish_time` | Reduce的Shuffle阶段完成时间 |
+| `merge_finish_time` | Reduce的Merge阶段完成时间 |
+| `reduce_finish_time` | Reduce的计算阶段完成时间 |
+
+#### 2. 时间线统计汇总
+**文件名**: `metrics/{实验ID}_slowstart_{值}_timeline_summary.csv`
+
+统计Map/Reduce的并行执行情况：
+
+| 列名 | 说明 |
+|------|------|
+| `experiment_id` | 实验标识符 |
+| `slowstart_value` | 慢启动参数值 |
+| `num_map_tasks` | Map任务总数 |
+| `num_reduce_tasks` | Reduce任务总数 |
+| `map_start_time` | 最早Map任务启动时间 |
+| `map_end_time` | 最晚Map任务完成时间 |
+| `map_duration_sec` | Map阶段总时长 |
+| `reduce_start_time` | 最早Reduce任务启动时间 |
+| `reduce_end_time` | 最晚Reduce任务完成时间 |
+| `reduce_duration_sec` | Reduce阶段总时长 |
+| `overlap_duration_sec` | **Map/Reduce重叠执行时间** ⭐ |
+| `reduce_start_at_map_pct` | **Reduce在Map执行百分比时启动** ⭐ |
+| `total_time_sec` | 作业总执行时间 |
+| `time_saved_sec` | 通过并行执行节省的时间 |
+| `parallel_efficiency_pct` | 并行效率百分比 |
+
+### 🚀 使用方法
+
+#### 自动提取（推荐）
+
+运行`monitor_job.sh`时会自动提取timeline数据：
+
+```bash
+# 运行实验
+./scripts/monitor_job.sh 0.3 /mr_input /mr_output
+
+# 实验完成后自动生成三个文件：
+# 1. metrics/experiment_{ID}_slowstart_0.3.csv       (实验结果)
+# 2. metrics/{ID}_slowstart_0.3_timeline.csv         (任务时间线)
+# 3. metrics/{ID}_slowstart_0.3_timeline_summary.csv (时间线统计)
+```
+
+#### 手动提取
+
+对于已完成的实验，可以手动提取timeline：
+
+```bash
+# 基本用法
+./scripts/extract_timeline.sh application_1764041163594_0018 0.3
+
+# 指定实验ID
+./scripts/extract_timeline.sh application_1764041163594_0018 0.3 20251125_141801
+
+# 查找application ID的方法
+yarn application -list -appStates FINISHED | tail -5
+```
+
+### 📋 前置要求
+
+**必须启动JobHistory Server**，否则无法通过REST API获取数据：
+
+```bash
+# 在hadoop001上启动
+mapred --daemon start historyserver
+
+# 验证启动
+jps | grep JobHistoryServer
+
+# 访问Web界面
+http://hadoop001:19888
+```
+
+### 🔍 实际案例：500MB数据 slowstart=0.3
+
+#### Timeline详细数据示例
+```csv
+experiment_id,slowstart_value,task_id,task_type,start_time,finish_time,elapsed_sec
+20251125_141801,0.3,task_..._m_000000,MAP,1764051516,1764051546,30
+20251125_141801,0.3,task_..._m_000001,MAP,1764051516,1764051546,29
+...
+20251125_141801,0.3,task_..._r_000000,REDUCE,1764051547,1764051607,59
+```
+
+#### Timeline汇总统计
+```csv
+experiment_id: 20251125_141801
+slowstart_value: 0.3
+num_map_tasks: 8
+num_reduce_tasks: 1
+map_duration_sec: 47
+reduce_duration_sec: 60
+overlap_duration_sec: 16        ⭐ Map/Reduce重叠16秒
+reduce_start_at_map_pct: 65.96  ⭐ Reduce在Map执行66%时启动
+parallel_efficiency_pct: 14.95   ⭐ 节省了15%的时间
+```
+
+### 💡 数据解读
+
+从500MB实验的timeline数据可以看出：
+
+1. **并行执行确认**：
+   - Map阶段：14:18:36 → 14:19:23 (47秒)
+   - Reduce启动：14:19:07（Map执行到66%时）
+   - **重叠时间：16秒**
+
+2. **Slowstart效果**：
+   - 虽然设置为0.3，但Reduce在66%时才启动
+   - 这是正常的，因为slowstart基于**数据处理进度**而非时间
+   - 前期Map处理快速数据，后期处理复杂数据
+
+3. **性能提升**：
+   - 理论串行时间：47 + 60 = 107秒
+   - 实际执行时间：91秒
+   - **节省16秒（15%）**
+
+### 🎯 对比不同slowstart值
+
+通过timeline可以清楚对比不同参数的效果：
+
+| Slowstart | Reduce启动时机 | 重叠时间 | 并行效率 |
+|-----------|----------------|----------|----------|
+| 0.1 | Map 10-20%时 | 更长 | 可能空转 |
+| 0.3 | Map 30-40%时 | 适中 | 较优 ⭐ |
+| 0.7 | Map 70-80%时 | 较短 | 偏串行 |
+| 1.0 | Map 100%后 | 无 | 完全串行 |
+
+### 🛠️ 故障排除
+
+**问题：JobHistory Server连接失败**
+
+```bash
+# 检查服务状态
+jps | grep JobHistoryServer
+
+# 如果没有运行，启动它
+mapred --daemon start historyserver
+
+# 检查端口

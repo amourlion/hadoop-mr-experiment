@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>MapReduce Timeline - 20251125_141801</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+        .timeline {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .task-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            height: 35px;
+        }
+        .task-label {
+            width: 120px;
+            font-weight: bold;
+            font-size: 12px;
+            text-align: right;
+            padding-right: 15px;
+        }
+        .task-bar-container {
+            flex: 1;
+            position: relative;
+            height: 25px;
+        }
+        .task-bar {
+            position: absolute;
+            height: 100%;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: white;
+            border: 1px solid rgba(0,0,0,0.2);
+            box-sizing: border-box;
+        }
+        .map-task {
+            background-color: #3498db;
+        }
+        .reduce-shuffle {
+            background-color: #f39c12;
+        }
+        .reduce-merge {
+            background-color: #9b59b6;
+        }
+        .reduce-phase {
+            background-color: #2ecc71;
+        }
+        .section-divider {
+            height: 20px;
+        }
+        .time-axis {
+            display: flex;
+            margin-left: 135px;
+            margin-top: 10px;
+            border-top: 2px solid #333;
+            position: relative;
+        }
+        .time-marker {
+            position: absolute;
+            font-size: 11px;
+            color: #666;
+            top: 5px;
+        }
+        .legend {
+            margin-top: 30px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .legend-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .legend-color {
+            width: 30px;
+            height: 15px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.2);
+        }
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff9e6;
+            border-radius: 8px;
+            border-left: 4px solid #f39c12;
+        }
+        .stats-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .stat-item {
+            font-size: 13px;
+            color: #555;
+        }
+        .stat-label {
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MapReduce Task Timeline</h1>
+        <div class="subtitle">Experiment: 20251125_141801 | Slowstart: 0.3</div>
+    </div>
+    
+    <div class="timeline">
+        <div class="task-row">
+            <div class="task-label">MAP 1</div>
+            <div class="task-bar-container">
+                <div class="task-bar map-task" style="left: 0.00%; width: 32.97%;">
+                    M000001 (30s)
+                </div>
+            </div>
+        </div>
+        <div class="task-row">
+            <div class="task-label">MAP 2</div>
+            <div class="task-bar-container">
+                <div class="task-bar map-task" style="left: 0.00%; width: 32.97%;">
+                    M000000 (30s)
+                </div>
+            </div>
+        </div>
+        <div class="task-row">
+            <div class="task-label">MAP 3</div>
+            <div class="task-bar-container">
+                <div class="task-bar map-task" style="left: 0.00%; width: 25.27%;">
+                    M000003 (23s)
+                </div>
+            </div>
+        </div>
+        <div class="task-row">
+            <div class="task-label">MAP 4</div>
+            <div class="task-bar-container">
+                <div class="task-bar map-task" style="left: 0.00%; width: 32.97%;">
+                    M000002 (30s)
+                </div>
+            </div>
+        </div>
+        <div class="task-row">
+            <div class="task-label">MAP 5</div>
+            <div class="task-bar-container">
+                <div class="task-bar map-task" style="left: 0.00%; width: 31.87%;">
+                    M000005 (29s)
+                </div>
+            </div>
+        </div>
+        <div class="task-row">
+            <div class="task-label">MAP 6</div>
+            <div class="task-bar-container">
+                <div class="task-bar map-task" style="left: 0.00%; width: 25.27%;">
+                    M000004 (23s)
+                </div>
+            </div>
+        </div>
+        <div class="task-row">
+            <div class="task-label">MAP 7</div>
+            <div class="task-bar-container">
+                <div class="task-bar map-task" style="left: 25.27%; width: 25.27%;">
+                    M000006 (23s)
+                </div>
+            </div>
+        </div>
+        <div class="task-row">
+            <div class="task-label">MAP 8</div>
+            <div class="task-bar-container">
+                <div class="task-bar map-task" style="left: 26.37%; width: 25.27%;">
+                    M000007 (23s)
+                </div>
+            </div>
+        </div>
+        <div class="section-divider"></div>
+        <div class="task-row">
+            <div class="task-label">REDUCE 1</div>
+            <div class="task-bar-container">
+                <div class="task-bar reduce-shuffle" style="left: 34.07%; width: 18.68%;">Shuffle</div>
+                <div class="task-bar reduce-merge" style="left: 52.75%; width: 21.98%;">Merge</div>
+                <div class="task-bar reduce-phase" style="left: 74.73%; width: 25.27%;">Reduce</div>
+            </div>
+        </div>
+        <div class="time-axis">
+            <div class="time-marker" style="left: 0.0%;">0s</div>
+            <div class="time-marker" style="left: 9.9%;">9s</div>
+            <div class="time-marker" style="left: 19.8%;">18s</div>
+            <div class="time-marker" style="left: 29.7%;">27s</div>
+            <div class="time-marker" style="left: 39.6%;">36s</div>
+            <div class="time-marker" style="left: 49.5%;">45s</div>
+            <div class="time-marker" style="left: 59.3%;">54s</div>
+            <div class="time-marker" style="left: 69.2%;">63s</div>
+            <div class="time-marker" style="left: 79.1%;">72s</div>
+            <div class="time-marker" style="left: 89.0%;">81s</div>
+            <div class="time-marker" style="left: 98.9%;">90s</div>
+        </div>
+    </div>
+    
+    <div class="legend">
+        <div class="legend-title">Legend</div>
+        <div class="legend-items">
+            <div class="legend-item">
+                <div class="legend-color map-task"></div>
+                <span>MAP Task</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color reduce-shuffle"></div>
+                <span>Shuffle Phase</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color reduce-merge"></div>
+                <span>Merge Phase</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color reduce-phase"></div>
+                <span>Reduce Phase</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="stats">
+        <div class="stats-title">Statistics</div>
+        <div class="stats-grid">
+            <div class="stat-item"><span class="stat-label">MAP Tasks:</span> 8</div>
+            <div class="stat-item"><span class="stat-label">REDUCE Tasks:</span> 1</div>
+            <div class="stat-item"><span class="stat-label">Total Elapsed:</span> 91.0s</div>
+            <div class="stat-item"><span class="stat-label">Avg MAP Duration:</span> 26.4s</div>
+            <div class="stat-item"><span class="stat-label">Avg REDUCE Duration:</span> 60.0s</div>
+        </div>
+    </div>
+</body>
+</html>
