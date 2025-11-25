@@ -22,10 +22,13 @@
 ├── run_scripts.sh                     # 🆕 便捷脚本执行器
 ├── docs/                             
 │   └── MULTI_NODE_USAGE.md           # 🆕 多节点使用指南
-└── metrics/                          # CSV数据输出目录
+├── system_metrics/                    # 🆕 系统时序指标数据（带时间戳，不覆盖）
+│   ├── {节点名}_{时间戳}.csv          # 如: iZbp17ue5tnwdnupp4di68Z_20251125_133131.csv
+│   └── README.md                     # 目录说明文档
+└── metrics/                          # 实验结果数据输出目录
     ├── experiment_*.csv              # 单次实验结果
     ├── batch_summary_*.csv           # 批量实验汇总
-    └── *.csv                        # 各节点系统指标文件
+    └── analysis_report_*.txt         # 分析报告
 ```
 
 ### 🚀 快速开始
@@ -114,12 +117,12 @@ experiment_id,slowstart_value,start_time,end_time,total_time_sec,avg_cpu_percent
 ### 📋 标准规范（供其他子项目参考）
 
 #### 1. 文件命名规范
-- **系统指标**: `{节点名}.csv` （如：master.csv, worker01.csv）
-- **实验结果**: `experiment_{实验ID}_slowstart_{值}.csv`
-- **批量汇总**: `batch_summary_{时间戳}.csv`
-- **集群合并**: `cluster_{实验ID}.csv`
-
-#### 2. 数据格式要求
+- **系统指标** (更新于2025-11-25): `system_metrics/{节点名}_{时间戳}.csv`
+  - 新格式示例：`system_metrics/iZbp17ue5tnwdnupp4di68Z_20251125_133131.csv`
+  - 旧格式：`{节点名}.csv` (已废弃，会被覆盖)
+  - **重要改进**：每次实验生成独立文件，避免历史数据被覆盖
+- **实验结果**: `metrics/experiment_{实验ID}_slowstart_{值}.csv`
+- **批量汇总**: `metrics/batch_summary_{时间戳}.csv`
 - **时间戳**: 使用Unix时间戳（秒级精度）
 - **百分比**: 使用0-100范围的浮点数
 - **内存/存储**: 统一使用MB或bytes单位
@@ -570,3 +573,240 @@ cd /opt/hadoop/etc/hadoop  进入配置文件目录下
         <value>4096</value>
     </property>
 '''
+
+---
+
+## 📝 100MB数据实验操作记录 (2025-11-25)
+
+### 实验目标
+生成100MB测试数据并运行一次完整的MapReduce实验，验证系统配置和性能监测功能。
+
+### 遇到的问题及解决方案
+
+#### 问题1：Timeout限制导致作业被杀
+**现象**: 
+- 作业运行时被timeout命令强制终止
+- YARN显示作业状态为KILLED
+- 实验CSV显示job_status为FAILED
+
+**原因**: 
+`scripts/monitor_job.sh` 第70行使用了 `timeout 300` 命令，限制作业最多运行300秒（5分钟）
+
+**解决方案**:
+```bash
+# 修改 scripts/monitor_job.sh
+# 将第70行从：
+timeout 300 hadoop jar target/reduce-startup-1.0-SNAPSHOT-jar-with-dependencies.jar "${INPUT_PATH}" "${OUTPUT_PATH}" 2>&1 | tee "${JOB_LOG_FILE}"
+
+# 改为：
+hadoop jar target/reduce-startup-1.0-SNAPSHOT-jar-with-dependencies.jar "${INPUT_PATH}" "${OUTPUT_PATH}" 2>&1 | tee "${JOB_LOG_FILE}"
+```
+
+#### 问题2：Reduce任务内存需求超过集群限制
+**现象**:
+```
+REDUCE capability required is more than the supported max container capability in the cluster.
+reduceResourceRequest: <memory:6096, vCores:1>
+maxContainerCapability:<memory:4096, vCores:4>
+```
+
+**原因**: 
+- Hadoop默认Reduce任务需要6096MB内存
+- 但集群配置的单容器最大内存只有4096MB
+- 导致YARN拒绝分配资源，作业被KILLED
+
+**解决方案**:
+在 `src/main/java/edu/example/mapreduce/Main.java` 中添加内存配置：
+
+```java
+Configuration conf = new Configuration();
+
+// ⭐ 实验 A：控制 Reduce 启动时机
+conf.setFloat("mapreduce.job.reduce.slowstart.completedmaps", 0.3f);
+
+// 设置内存配置，确保不超过集群限制（最大4096MB）
+conf.set("mapreduce.map.memory.mb", "2048");
+conf.set("mapreduce.reduce.memory.mb", "3072");
+conf.set("mapreduce.map.java.opts", "-Xmx1638m");
+conf.set("mapreduce.reduce.java.opts", "-Xmx2458m");
+```
+
+### 完整操作步骤
+
+#### 1. 生成100MB测试数据
+```bash
+# 使用数据生成脚本
+python3 scripts/generate_data.py 100 --output input-100mb --prefix data
+
+# 生成结果：
+# - 8个文件（data01.txt ~ data08.txt）
+# - 每个文件约12.5MB
+# - 总计约100MB
+# - 自动生成上传脚本 upload_to_hdfs.sh
+```
+
+#### 2. 上传数据到HDFS
+```bash
+cd input-100mb
+./upload_to_hdfs.sh /mr_input_100mb_20251125
+
+# 验证上传
+hdfs dfs -ls /mr_input_100mb_20251125
+hdfs dfs -du -h /mr_input_100mb_20251125
+```
+
+#### 3. 修改配置文件
+```bash
+# 1. 修改 scripts/monitor_job.sh 移除timeout限制
+# 2. 修改 src/main/java/edu/example/mapreduce/Main.java 添加内存配置
+```
+
+#### 4. 运行实验
+```bash
+# 运行单次实验
+./scripts/monitor_job.sh 0.3 /mr_input_100mb_20251125 /mr_output_100mb_20251125_success
+
+# 实验ID: 20251125_131923
+# Slowstart值: 0.3
+```
+
+### 实验结果
+
+#### 作业统计信息
+```
+Job Status: SUCCESS ✓
+Total Time: 47 seconds
+Input Data: 104,857,846 bytes (约100MB)
+Output Data: 11,731,250 bytes (约11.2MB)
+Map Tasks: 9 (8 successful + 1 killed)
+Reduce Tasks: 1
+```
+
+#### 详细性能指标
+```
+Map阶段:
+- Map输入记录: 1,226,345
+- Map输出记录: 13,006,924
+- Map输出字节: 156,885,542
+- 本地Map任务数: 9
+- Map总耗时: 84,289 ms
+
+Reduce阶段:
+- Reduce输入组数: 1,056,294
+- Reduce输入记录: 13,006,924
+- Reduce输出记录: 1,056,294
+- Shuffle字节数: 182,899,438
+- Reduce总耗时: 14,112 ms
+
+资源使用:
+- CPU时间: 62,020 ms
+- GC时间: 3,243 ms
+- 物理内存峰值: 636,633,088 bytes (Map)
+- 物理内存峰值: 516,087,808 bytes (Reduce)
+```
+
+#### 系统监控指标
+```
+实验期间统计:
+- 平均CPU使用率: 49.98%
+- 最大CPU使用率: 100.00%
+- 平均内存使用: 49.98 MB
+- 最大内存使用: 100.00 MB
+- 平均负载: 43.39
+- 最大负载: 62.90
+```
+
+#### HDFS输出验证
+```bash
+$ hdfs dfs -ls /mr_output_100mb_20251125_success
+Found 2 items
+-rw-r--r--   3 ecs-user supergroup          0 2025-11-25 13:20 /mr_output_100mb_20251125_success/_SUCCESS
+-rw-r--r--   3 ecs-user supergroup   11731250 2025-11-25 13:20 /mr_output_100mb_20251125_success/part-r-00000
+```
+
+### 实验结论
+
+1. **成功完成**: 在解决timeout和内存配置问题后，100MB数据实验成功完成
+2. **执行效率**: 47秒处理100MB数据，性能表现良好
+3. **配置优化**: 证明了内存配置的重要性，需要根据集群实际资源限制进行调整
+4. **监控系统**: CSV记录和系统监控功能正常工作，数据完整
+
+### 后续建议
+
+1. **更大数据集**: 可以尝试500MB或1GB数据集测试
+2. **参数调优**: 可以测试不同slowstart值（0.1, 0.5, 0.7, 1.0）对比性能
+3. **批量实验**: 使用 `batch_experiment.sh` 进行多组对比实验
+4. **内存监控**: 关注不同数据规模下的内存使用情况
+
+### 关键文件位置
+- 实验结果CSV: `metrics/experiment_20251125_131923_slowstart_0.3.csv`
+- 系统指标CSV: `iZbp17ue5tnwdnupp4di68Z.csv`
+- HDFS输入目录: `/mr_input_100mb_20251125`
+- HDFS输出目录: `/mr_output_100mb_20251125_success`
+
+---
+
+## 🔄 系统指标文件管理优化 (2025-11-25)
+
+### 问题描述
+之前的系统指标CSV文件使用固定文件名（如`iZbp17ue5tnwdnupp4di68Z.csv`），导致每次实验都会覆盖上一次的数据，无法保留历史记录。
+
+### 解决方案
+
+#### 1. 新的文件命名格式
+```
+system_metrics/{节点名}_{时间戳}.csv
+```
+
+**示例**：
+- `system_metrics/iZbp17ue5tnwdnupp4di68Z_20251125_133131.csv`
+- `system_metrics/master_20251125_140000.csv`
+- `system_metrics/worker01_20251125_140000.csv`
+
+#### 2. 修改的脚本
+
+**scripts/collect_metrics.sh**：
+- 添加时间戳生成：`TIMESTAMP=$(date +%Y%m%d_%H%M%S)`
+- 修改输出路径：`OUTPUT_FILE="system_metrics/${NODE_NAME}_${TIMESTAMP}.csv"`
+- 自动创建目录：`mkdir -p system_metrics`
+
+**scripts/monitor_job.sh**：
+- 同步时间戳生成
+- 更新系统指标文件路径：`SYSTEM_METRICS_FILE="system_metrics/${NODE_NAME}_${TIMESTAMP}.csv"`
+
+#### 3. 新增文件
+- **目录**：`system_metrics/` - 专门存储系统时序指标数据
+- **文档**：`system_metrics/README.md` - 详细说明文件格式和使用方法
+- **.gitignore**：添加 `system_metrics/` 排除规则
+
+### 优势
+
+1. **数据保留**：每次实验的系统指标独立保存，不会覆盖
+2. **可追溯**：通过时间戳精确定位到具体实验
+3. **多节点友好**：文件名包含节点名，便于区分
+4. **便于分析**：可以对比多次实验的系统资源使用趋势
+
+### 使用示例
+
+```bash
+# 运行实验后，查看生成的系统指标文件
+ls -lht system_metrics/
+
+# 查看特定节点在某个时间段的所有实验
+ls -lh system_metrics/iZbp17ue5tnwdnupp4di68Z_202511*
+
+# 分析某次实验的系统指标
+cat system_metrics/iZbp17ue5tnwdnupp4di68Z_20251125_133131.csv
+```
+
+### 数据清理
+
+定期清理旧数据以节省空间：
+
+```bash
+# 删除30天前的数据
+find system_metrics/ -name "*.csv" -mtime +30 -delete
+
+# 只保留最近10次实验
+ls -t system_metrics/*.csv | tail -n +11 | xargs rm -f
+```

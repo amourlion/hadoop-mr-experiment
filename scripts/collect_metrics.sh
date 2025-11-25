@@ -16,8 +16,12 @@ if [ -z "$NODE_NAME" ]; then
     exit 1
 fi
 
-# Generate output filename based on node name
-OUTPUT_FILE="${NODE_NAME}.csv"
+# Generate output filename with timestamp to avoid overwriting
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+OUTPUT_FILE="system_metrics/${NODE_NAME}_${TIMESTAMP}.csv"
+
+# Create system_metrics directory if it doesn't exist
+mkdir -p system_metrics
 
 # Function to get CPU usage percentage
 get_cpu_usage() {

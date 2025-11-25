@@ -1,8 +1,7 @@
-cat > .gitignore <<EOF
-# Maven
 target/
 !.mvn/wrapper/maven-wrapper.jar
 
+# VSCode
 # VSCode
 .vscode/
 
@@ -13,13 +12,18 @@ target/
 # Logs
 *.log
 
+# dont upload csv otherwise will result in slow performance
+*.csv
+
 # OS files
 .DS_Store
 
+# Input data files
 *.txt
+input-*/
 
-*.csv
+# System metrics (time-series data)
+system_metrics/
 
+# Temporary files
 *.tmp
-
-EOF

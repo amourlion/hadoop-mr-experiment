@@ -58,11 +58,12 @@ get_hadoop_pid() {
 echo -e "${BLUE}Starting system resource monitoring...${NC}"
 # Extract node name from hostname or use default
 NODE_NAME=${NODE_NAME:-$(hostname -s)}
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 "$(dirname "$0")/collect_metrics.sh" "${NODE_NAME}" &
 MONITOR_PID=$!
 
 # Update system metrics file path to match the new naming convention
-SYSTEM_METRICS_FILE="${NODE_NAME}.csv"
+SYSTEM_METRICS_FILE="system_metrics/${NODE_NAME}_${TIMESTAMP}.csv"
 
 # Update slowstart value in Main.java
 echo -e "${BLUE}Updating slowstart value to ${SLOWSTART_VALUE}...${NC}"
@@ -83,7 +84,7 @@ START_TIME_HUMAN=$(date)
 echo -e "${GREEN}Starting Hadoop job at ${START_TIME_HUMAN}...${NC}"
 
 # Run Hadoop job and capture output
-timeout 300 hadoop jar target/reduce-startup-1.0-SNAPSHOT-jar-with-dependencies.jar "${INPUT_PATH}" "${OUTPUT_PATH}" 2>&1 | tee "${JOB_LOG_FILE}"
+hadoop jar target/reduce-startup-1.0-SNAPSHOT-jar-with-dependencies.jar "${INPUT_PATH}" "${OUTPUT_PATH}" 2>&1 | tee "${JOB_LOG_FILE}"
 JOB_EXIT_CODE=${PIPESTATUS[0]}
 
 # Record end time
