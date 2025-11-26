@@ -10,8 +10,8 @@ rm -rf ~/MRApplication/reduce-startup/input-1gb
 echo "✓ 已清理 input-* 目录"
 
 echo ">>> 2. 清理metrics和系统指标旧数据"
-# rm -rf ~/MRApplication/reduce-startup/metrics/*.csv
-# rm -rf ~/MRApplication/reduce-startup/system_metrics/*.csv
+rm -rf ~/MRApplication/reduce-startup/metrics/*.csv
+rm -rf ~/MRApplication/reduce-startup/system_metrics/*.csv
 echo "✓ 已清理旧实验数据"
 
 echo ">>> 3. 清理Maven缓存"

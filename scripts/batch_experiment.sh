@@ -24,7 +24,7 @@ SUMMARY_CSV="metrics/batch_summary_${EXPERIMENT_BASE_ID}.csv"
 REMOTE_NODES=("hadoop002" "hadoop003")
 REMOTE_MONITOR_DIR="~/monitoring"
 MONITOR_INTERVAL=1
-LOCAL_METRICS_DIR="system_metrics"
+LOCAL_METRICS_DIR="other_node_monitoring"
 
 # Arrays to track monitoring status
 declare -A MONITORING_PIDS
@@ -111,12 +111,14 @@ collect_remote_data() {
     local node=$1
     echo -e "${CYAN}  → Collecting data from ${node}...${NC}"
     
-    # Find the most recent CSV file for this node
-    local remote_file=$(ssh "${node}" "ls -t ${REMOTE_MONITOR_DIR}/${node}_*.csv 2>/dev/null | head -n 1" 2>/dev/null)
+    # Find the most recent CSV file for this node in system_metrics subdirectory
+    local remote_file=$(ssh "${node}" "ls -t ${REMOTE_MONITOR_DIR}/system_metrics/${node}_*.csv 2>/dev/null | head -n 1" 2>/dev/null)
     
     if [ -n "$remote_file" ]; then
         local filename=$(basename "$remote_file")
-        local local_file="${LOCAL_METRICS_DIR}/${filename}"
+        # Create node-specific directory and save file there
+        mkdir -p "${LOCAL_METRICS_DIR}/${node}"
+        local local_file="${LOCAL_METRICS_DIR}/${node}/${filename}"
         
         # Copy file from remote node
         if scp "${node}:${remote_file}" "${local_file}" >/dev/null 2>&1; then
