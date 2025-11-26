@@ -36,16 +36,19 @@ public class Main {
         Configuration conf = new Configuration();
 
         // ⭐ 实验 A：控制 Reduce 启动时机
-        conf.setFloat("mapreduce.job.reduce.slowstart.completedmaps", 0.3f);
+        conf.setFloat("mapreduce.job.reduce.slowstart.completedmaps", 1.0f);
         
-        // 设置内存配置，确保不超过集群限制（最大4096MB）
-        conf.set("mapreduce.map.memory.mb", "2048");
-        conf.set("mapreduce.reduce.memory.mb", "3072");
-        conf.set("mapreduce.map.java.opts", "-Xmx1638m");
-        conf.set("mapreduce.reduce.java.opts", "-Xmx2458m");
+        // 设置内存配置，确保不超过集群限制
+        // conf.set("mapreduce.map.memory.mb", "3072");
+        // conf.set("mapreduce.reduce.memory.mb", "6144");
+        // conf.set("mapreduce.map.java.opts", "-Xmx2458m");
+        // conf.set("mapreduce.reduce.java.opts", "-Xmx4915m");
 
         Job job = Job.getInstance(conf, "ReduceStartExperiment");
         job.setJarByClass(Main.class);
+
+        job.setNumReduceTasks(4);  // 使用4个Reduce任务分担压力
+
 
         job.setMapperClass(MapperA.class);
         job.setReducerClass(ReducerA.class);

@@ -122,7 +122,7 @@ class DatasetGenerator:
                         break
                 
                 # Progress reporting
-                if progress_callback and lines_written % 5000 == 0:
+                if progress_callback and lines_written % 1000000 == 0:
                     progress_pct = min(100, (current_size / target_size_bytes) * 100)
                     progress_callback(filepath, progress_pct, current_size, lines_written)
         
