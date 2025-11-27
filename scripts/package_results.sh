@@ -13,7 +13,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-DIRS_TO_PACKAGE=("metrics" "system_metrics" "other_node_monitoring")
+DIRS_TO_PACKAGE=("metrics" "system_metrics" "other_node_monitoring" "mapreduce_metrics")
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 DEFAULT_OUTPUT="experiment_results_${TIMESTAMP}.zip"
 OUTPUT_FILE=${1:-"${DEFAULT_OUTPUT}"}

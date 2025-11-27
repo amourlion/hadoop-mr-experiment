@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ================= 配置区 =================
-NODE_NAME=${1:-"unknown_node"}
-OUTPUT_DIR="mapreduce_metrics"
+NODE_NAME=${1:-"hadoop001"}
+OUTPUT_DIR="./mapreduce_metrics"
 # 进程级指标文件 (CPU, Mem, Disk IO)
 PROCESS_LOG="${OUTPUT_DIR}/${NODE_NAME}_process_metrics.txt"
 # 系统级网络指标文件 (Network IO)
