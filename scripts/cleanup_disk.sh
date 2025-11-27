@@ -4,14 +4,18 @@
 echo "=== 磁盘清理开始 ==="
 df -h | grep /dev/vda3
 
+# 获取当前仓库路径
+REPO_PATH="/hadoop_data/MRApplication/MRApplication/reduce-startup"
+
 echo ">>> 1. 清理本地input数据（HDFS已有备份）"
-rm -rf ~/MRApplication/reduce-startup/input-10gb
-rm -rf ~/MRApplication/reduce-startup/input-1gb
+rm -rf $REPO_PATH/input-10gb
+rm -rf $REPO_PATH/input-1gb
 echo "✓ 已清理 input-* 目录"
 
 echo ">>> 2. 清理metrics和系统指标旧数据"
-# rm -rf ~/MRApplication/reduce-startup/metrics/*.csv
-# rm -rf ~/MRApplication/reduce-startup/system_metrics/*.csv
+rm -rf $REPO_PATH/metrics/*.csv
+rm -rf $REPO_PATH/metrics/*.txt
+rm -rf $REPO_PATH/system_metrics/*.csv
 echo "✓ 已清理旧实验数据"
 
 echo ">>> 3. 清理Maven缓存"
@@ -19,7 +23,7 @@ rm -rf ~/.m2/repository
 echo "✓ 已清理Maven仓库"
 
 echo ">>> 4. 清理编译输出"
-rm -rf ~/MRApplication/reduce-startup/target
+rm -rf $REPO_PATH/target
 echo "✓ 已清理target目录"
 
 echo ">>> 5. 清理Hadoop临时文件"
@@ -36,6 +40,10 @@ rm -rf /opt/hadoop/logs/*.log.[0-9]*
 rm -rf /opt/hadoop/logs/*.out.[0-9]*
 echo "✓ 已清理Hadoop旧日志"
 
+echo ">>> 8. 清理MapReduce指标数据"
+rm -rf $REPO_PATH/mapreduce_metrics/*
+echo "✓ 已清理MapReduce指标数据"
+
 echo "=== 清理完成 ==="
 df -h | grep /dev/vda3
 
@@ -47,4 +55,3 @@ echo "- 编译输出: ~100MB"
 echo "- 临时文件: ~500MB"
 echo "- APT缓存: ~200MB"
 echo "- 总计: ~12-14GB"
-
